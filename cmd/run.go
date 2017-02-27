@@ -26,9 +26,11 @@ import (
 const (
 	defaultLimitThreads      = 10
 	defaultLimitIter         = 1000
+	defaultGardenThreads     = 0
 	defaultDockerThreads     = 0
 	defaultRuncThreads       = 0
 	defaultContainerdThreads = 0
+	defaultGaolBinary        = "gaol"
 	defaultDockerBinary      = "docker"
 	defaultRuncBinary        = "runc"
 	defaultContainerdBinary  = "ctr"
@@ -36,16 +38,19 @@ const (
 	defaultRuncBundle        = "."
 
 	dockerIter     = 15
+	gardenIter     = 50
 	runcIter       = 50
 	containerdIter = 50
 )
 
 var (
 	dockerThreads     int
+	gardenThreads     int
 	runcThreads       int
 	containerdThreads int
 	dockerBinary      string
 	runcBinary        string
+	gaolBinary        string
 	containerdBinary  string
 	dockerImage       string
 	runcBundle        string
@@ -82,6 +87,22 @@ and then report the results to the terminal.`,
 			threadRates: limitRates,
 		}
 		results = append(results, limitResult)
+
+		if gardenThreads > 0 {
+			gardenRates, err := runGardenBasicBench()
+			if err != nil {
+				log.Errorf("Error during garden basic benchmark execution: %v", err)
+				return err
+			}
+			gardenResult := benchResult{
+				name:        "GardenBasic",
+				threads:     gardenThreads,
+				iterations:  gardenIter,
+				threadRates: gardenRates,
+			}
+			results = append(results, gardenResult)
+			maxThreads = intMax(maxThreads, gardenThreads)
+		}
 
 		if dockerThreads > 0 {
 			// run basic benchmark against Docker
@@ -153,6 +174,31 @@ func runLimitTest() []float64 {
 		log.Infof("Limit: threads %d, iterations %d, rate: %6.2f", i, defaultLimitIter, rate)
 	}
 	return rates
+}
+
+func runGardenBasicBench() ([]float64, error) {
+	var rates []float64
+	for i := 1; i <= gardenThreads; i++ {
+		basic, _ := benches.New(benches.Basic)
+		err := basic.Init(driver.Garden, gaolBinary, "", trace)
+		if err != nil {
+			return []float64{}, err
+		}
+
+		if err = basic.Validate(); err != nil {
+			return []float64{}, fmt.Errorf("Error during basic bench validate: %v", err)
+		}
+
+		err = basic.Run(i, gardenIter)
+		if err != nil {
+			return []float64{}, fmt.Errorf("Error during basic bench run: %v", err)
+		}
+		duration := basic.Elapsed()
+		rate := float64(i*gardenIter) / duration.Seconds()
+		rates = append(rates, rate)
+		log.Infof("Garden Basic: threads %d, iterations %d, rate: %6.2f", i, gardenIter, rate)
+	}
+	return rates, nil
 }
 
 func runDockerBasicBench() ([]float64, error) {
@@ -253,6 +299,8 @@ func intMax(x, y int) int {
 
 func init() {
 	RootCmd.AddCommand(runCmd)
+	runCmd.PersistentFlags().IntVarP(&gardenThreads, "garden", "g", defaultGardenThreads, "Number of threads to execute against Garden")
+	runCmd.PersistentFlags().StringVarP(&gaolBinary, "gaol-binary", "", defaultGaolBinary, "Name/path of gaol binary")
 	runCmd.PersistentFlags().IntVarP(&dockerThreads, "docker", "d", defaultDockerThreads, "Number of threads to execute against Docker")
 	runCmd.PersistentFlags().IntVarP(&runcThreads, "runc", "r", defaultRuncThreads, "Number of threads to execute against runc")
 	runCmd.PersistentFlags().IntVarP(&containerdThreads, "containerd", "c", defaultContainerdThreads, "Number of threads to execute against containerd")

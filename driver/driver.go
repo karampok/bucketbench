@@ -12,6 +12,8 @@ const (
 	Runc
 	// Containerd represents the containerd-based driver implementation
 	Containerd
+
+	Garden
 	// Null driver represents an empty driver for use by benchmarks that
 	// require no driver
 	Null
@@ -76,6 +78,8 @@ func New(dtype Type, binaryPath string) (Driver, error) {
 		return NewDockerDriver(binaryPath)
 	case Containerd:
 		return NewContainerdDriver(binaryPath)
+	case Garden:
+		return NewGardenDriver(binaryPath)
 	case Null:
 		return nil, nil
 	default:
