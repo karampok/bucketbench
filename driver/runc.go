@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/estesp/bucketbench/utils"
-	log "github.com/sirupsen/logrus"
 )
+
+const defaultRuncBinary = "runc"
 
 // RuncDriver is an implementation of the driver interface for Runc.
 // IMPORTANT: This implementation does not protect instance metadata for thread safely.
@@ -28,6 +30,9 @@ type RuncContainer struct {
 
 // NewRuncDriver creates an instance of the runc driver, providing a path to runc
 func NewRuncDriver(binaryPath string) (Driver, error) {
+	if binaryPath == "" {
+		binaryPath = defaultRuncBinary
+	}
 	resolvedBinPath, err := utils.ResolveBinary(binaryPath)
 	if err != nil {
 		return &RuncDriver{}, err
@@ -69,6 +74,12 @@ func (c *RuncContainer) Image() string {
 	return c.bundlePath
 }
 
+// Command is not implemented for the runc driver type
+// as the command is embedded in the config.json of the rootfs
+func (c *RuncContainer) Command() string {
+	return ""
+}
+
 // Pid returns the process ID in cases where this container instance is
 // wrapping a potentially running container
 func (c *RuncContainer) Pid() string {
@@ -85,6 +96,17 @@ func (r *RuncDriver) Type() Type {
 	return Runc
 }
 
+// Path returns the binary path of the runc binary in use
+func (r *RuncDriver) Path() string {
+	return r.runcBinary
+}
+
+// Close allows the driver to handle any resource free/connection closing
+// as necessary. Runc has no need to perform any actions on close.
+func (r *RuncDriver) Close() error {
+	return nil
+}
+
 // Info returns
 func (r *RuncDriver) Info() (string, error) {
 	info := "runc driver (binary: " + r.runcBinary + ")\n"
@@ -97,7 +119,7 @@ func (r *RuncDriver) Info() (string, error) {
 
 // Create will create a container instance matching the specific needs
 // of a driver
-func (r *RuncDriver) Create(name, image string, detached bool, trace bool) (Container, error) {
+func (r *RuncDriver) Create(name, image, cmdOverride string, detached bool, trace bool) (Container, error) {
 	return newRuncContainer(name, image, detached, trace), nil
 }
 

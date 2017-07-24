@@ -10,10 +10,13 @@ const (
 	Docker Type = iota
 	// Runc represents the runc-based driver implementation
 	Runc
-	// Containerd represents the containerd-based driver implementation
-	Containerd
-
 	Garden
+	// Containerd represents the containerd-based driver implementation
+	// using the GRPC API via the containerd client library
+	Containerd
+	// Ctr represents the containerd legacy driver using the `ctr`
+	// binary to drive containerd operations
+	Ctr
 	// Null driver represents an empty driver for use by benchmarks that
 	// require no driver
 	Null
@@ -34,6 +37,10 @@ type Container interface {
 	// Image returns either a bundle path (used by runc, containerd) or image name (used by Docker)
 	// that will be used by the container runtime to know what image to run/execute
 	Image() string
+
+	// Command returns an optional command that overrides the default image
+	// "CMD" or "ENTRYPOINT" for the Docker and Containerd (gRPC) drivers
+	Command() string
 }
 
 // Driver is an interface for various container engines. The integer returned from
@@ -46,9 +53,12 @@ type Driver interface {
 	// Info returns a string with information about the container engine/runtime details
 	Info() (string, error)
 
+	// Path returns the binary (or socket) path related to the runtime in use
+	Path() string
+
 	// Create will create a container instance matching the specific needs
 	// of a driver
-	Create(name, image string, detached bool, trace bool) (Container, error)
+	Create(name, image, cmdOverride string, detached bool, trace bool) (Container, error)
 
 	// Clean will clean the operating environment of a specific driver
 	Clean() error
@@ -67,22 +77,68 @@ type Driver interface {
 
 	// Unpause will unpause/resume a container
 	Unpause(ctr Container) (string, int, error)
+
+	// Close allows the driver to free any resources/close any
+	// connections
+	Close() error
 }
 
 // New creates a driver instance of a specific type
-func New(dtype Type, binaryPath string) (Driver, error) {
+func New(dtype Type, path string) (Driver, error) {
 	switch dtype {
 	case Runc:
-		return NewRuncDriver(binaryPath)
-	case Docker:
-		return NewDockerDriver(binaryPath)
-	case Containerd:
-		return NewContainerdDriver(binaryPath)
+		return NewRuncDriver(path)
 	case Garden:
-		return NewGardenDriver(binaryPath)
+		return NewGardenDriver(path)
+	case Docker:
+		return NewDockerDriver(path)
+	case Containerd:
+		return NewContainerdDriver(path)
+	case Ctr:
+		return NewCtrDriver(path)
 	case Null:
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("No such driver type: %v", dtype)
 	}
+}
+
+// TypeToString converts a driver Type into its string representation
+func TypeToString(dtype Type) string {
+	var driverType string
+	switch dtype {
+	case Docker:
+		driverType = "Docker"
+	case Containerd:
+		driverType = "Containerd"
+	case Ctr:
+		driverType = "Ctr"
+	case Runc:
+		driverType = "Runc"
+	case Garden:
+		driverType = "Garden"
+	default:
+		driverType = "(unknown)"
+	}
+	return driverType
+}
+
+// StringToType converts a driver stringified typename into its Type
+func StringToType(dtype string) Type {
+	var driverType Type
+	switch dtype {
+	case "Docker":
+		driverType = Docker
+	case "Containerd":
+		driverType = Containerd
+	case "Ctr":
+		driverType = Ctr
+	case "Runc":
+		driverType = Runc
+	case "Garden":
+		driverType = Garden
+	default:
+		driverType = Null
+	}
+	return driverType
 }

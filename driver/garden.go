@@ -32,7 +32,7 @@ func (g *GardenDriver) runGaol(gaolArgs ...string) (string, error) {
 	return string(out), nil
 }
 
-func (g *GardenDriver) Create(name, image string, detached bool, trace bool) (Container, error) {
+func (g *GardenDriver) Create(name, image, cmdOverride string, detached bool, trace bool) (Container, error) {
 	if _, err := g.runGaol("create", "-n", name); err != nil {
 		return nil, err
 	}
@@ -82,6 +82,14 @@ func (g *GardenDriver) Unpause(ctr Container) (string, int, error) {
 	return "", 0, nil
 }
 
+func (g *GardenDriver) Close() error {
+	return nil
+}
+
+func (g *GardenDriver) Path() string {
+	return g.gaolPath
+}
+
 type gardenContainer struct {
 	name     string
 	detached bool
@@ -100,5 +108,9 @@ func (c *gardenContainer) Trace() bool {
 }
 
 func (c *gardenContainer) Image() string {
+	return ""
+}
+
+func (c *gardenContainer) Command() string {
 	return ""
 }

@@ -1,0 +1,13 @@
+name: CtrdOnly
+image: alpine
+command: date
+detached: true
+drivers:
+  - 
+   type: Containerd
+   threads: 5
+   iterations: 10
+commands:
+  - run
+  - stop
+  - delete
